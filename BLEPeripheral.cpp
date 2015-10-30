@@ -10,9 +10,12 @@
 #define DEFAULT_DEVICE_NAME "Arduino"
 #define DEFAULT_APPEARANCE  0x0000
 
+
 BLEPeripheral::BLEPeripheral(unsigned char req, unsigned char rdy, unsigned char rst) :
 #if defined(NRF51) || defined(__RFduino__)
   _nRF51822(),
+#elif defined(NRFCC2541)
+  _cc2541(req, rdy, rst),
 #else
   _nRF8001(req, rdy, rst),
 #endif
@@ -41,6 +44,8 @@ BLEPeripheral::BLEPeripheral(unsigned char req, unsigned char rdy, unsigned char
 {
 #if defined(NRF51) || defined(__RFduino__)
   this->_device = &this->_nRF51822;
+#elif defined(NRFCC2541)
+  this->_device = &this->_cc2541;
 #else
   this->_device = &this->_nRF8001;
 #endif
