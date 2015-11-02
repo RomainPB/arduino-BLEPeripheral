@@ -27,7 +27,6 @@ struct setupMsgData {
 #define DYNAMIC_DATA_MAX_CHUNK_SIZE             26
 #define DYNAMIC_DATA_SIZE                       (DYNAMIC_DATA_MAX_CHUNK_SIZE * 6)
 
-
 /* Having PROGMEM here caused the setup messages to be zeroed out */
 static const hal_hci_data_t baseSetupMsgs[NB_BASE_SETUP_MESSAGES] /*PROGMEM*/ = {};
 
@@ -153,7 +152,6 @@ void cc2541::begin(unsigned char advertisementDataType,
   rc = GAP_DeviceInit (GAP_PROFILE_PERIPHERAL, 3, irk, srk, sig_counter);
   dbgPrint("Begin ... Init Done");
   dbgPrint(rc);
- 
 
 
   for (int i = 0; i < numLocalAttributes; i++) {
@@ -812,7 +810,6 @@ void rx_msg_clean(void) {
 }
 
 bool store_rx_msg_data(uint8_t data) {
-    
     if (data < (RX_BUFFER_MAX_LEN-1)) {
         rx_buffer.data[rx_buffer.len] = data;
         rx_buffer.len++;
@@ -852,23 +849,23 @@ bool processEvent()
 {
     uint16_t i = 0;
     bool done = false;
-
+    
     if (rx_buffer.len <= 2 ) {
         return done;
     }
 
     switch (rx_buffer.data[1]) {
        
-    case 0xFF:  // Vendor specific Event Opcode
+    case Ev_Vendor_Specific:  // Vendor specific Event Opcode
         done = processVendorSpecificEvent();
     break;
 
-    case 0x0F:  // Command Status
+    case EV_Command_Status:  // Command Status
         done = processCommandStatus();
     break;
     
-    case 0x0E:  // Command Complete
-    case 0x3E:  // LE Event Opcode
+    case EV_Command_Complete:  // Command Complete
+    case EV_LE_Event_Code:     // LE Event Opcode
     default:
     break;
     
@@ -881,7 +878,7 @@ void process_rx_msg_data() {
     bool done = false;
 
     switch (rx_buffer.data[0]) {
-    case 4:  // Event
+    case HCI_EVENT:  // Event
         done = processEvent();
     break;
      
@@ -905,7 +902,6 @@ void cc2541::poll() {
       GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
       //sendSetupMessage();
       dbgPrint("Make Discoverable");
-
   // We enter the if statement only when there is a ACI event available to be processed
 /*
   if (lib_aci_event_get(&this->_aciState, &this->_aciData)) {
