@@ -27,7 +27,7 @@ struct setupMsgData {
 #define DYNAMIC_DATA_MAX_CHUNK_SIZE             26
 #define DYNAMIC_DATA_SIZE                       (DYNAMIC_DATA_MAX_CHUNK_SIZE * 6)
 
-
+static bool initDone = false;
 /* Having PROGMEM here caused the setup messages to be zeroed out */
 static const hal_hci_data_t baseSetupMsgs[NB_BASE_SETUP_MESSAGES] /*PROGMEM*/ = {};
 
@@ -132,6 +132,62 @@ int GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType, uint8_t *
     return 1;
 }
 
+
+
+	
+int GATT_AddService(uint16_t nAttributes)
+{
+	uint8_t buf[42] = {};
+	uint8_t len = 0;
+	
+	buf[len++] = 0x01;                  // -Type    : 0x01 (Command)
+	buf[len++] = 0xFC;                  // -Opcode  : 0xFDFC (GATT_AddService)
+	buf[len++] = 0xFD;
+	
+	buf[len++] = 0x00;
+	buf[len++] = 0x28;
+
+	buf[len++] = nAttributes && 0xFF;
+	buf[len++] = (nAttributes && 0xFF00) >> 8;
+    buf[len++] =  7; // encKey = 7..16
+	BLE.write(buf, len);
+
+	return 1;
+}
+
+
+#define GATT_UUID_SIZE 16
+
+uint8_t gatt_uuid[GATT_UUID_SIZE] = {'L','E','D',0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+#define GATT_PERMIT_READ         0x01
+#define GATT_PERMIT_WRITE        0x02
+#define GATT_PERMIT_AUTHEN_READ  0x04	
+#define GATT_PERMIT_AUTHEN_WRITE 0x08	
+#define GATT_PERMIT_AUTHOR_READ  0x10	
+#define GATT_PERMIT_AUTHOR_WRITE 0x20
+
+int GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permission)
+{
+	uint8_t buf[42] = {};
+	uint8_t len = 0;
+    int i = 0;	
+
+	buf[len++] = 0x01;                  // -Type    : 0x01 (Command)
+	buf[len++] = 0xFE;                  // -Opcode  : 0xFDFE (GATT_AddAttribute)
+	buf[len++] = 0xFD;
+	for (i = 0; ((i < uuid_len) || (i < GATT_UUID_SIZE)); ++i) {
+        buf[len+i] = uuid[i];
+    }	 
+    len +=16;
+   
+    buf[len++] = permission;
+
+	BLE.write(buf, len);
+
+	return 1;
+}
+
 void cc2541::begin(unsigned char advertisementDataType,
                       unsigned char advertisementDataLength,
                       const unsigned char* advertisementData,
@@ -154,7 +210,6 @@ void cc2541::begin(unsigned char advertisementDataType,
   dbgPrint("Begin ... Init Done");
   dbgPrint(rc);
  
-
 
   for (int i = 0; i < numLocalAttributes; i++) {
     BLELocalAttribute* localAttribute = localAttributes[i];
@@ -242,7 +297,7 @@ void cc2541::begin(unsigned char advertisementDataType,
   }
 
   this->_remotePipeInfo = (struct remotePipeInfo*)malloc(sizeof(struct remotePipeInfo) * numRemotePipedCharacteristics);
-/*
+
   this->waitForSetupMode();
 
   hal_hci_data_t setupMsg;
@@ -252,7 +307,7 @@ void cc2541::begin(unsigned char advertisementDataType,
 
   bool hasAdvertisementData = advertisementDataType && advertisementDataLength && advertisementData;
   bool hasScanData          = scanDataType && scanDataLength && scanData;
-
+/*
   for (int i = 0; i < NB_BASE_SETUP_MESSAGES; i++) {
     int setupMsgSize = pgm_read_byte_near(&baseSetupMsgs[i].buffer[0]) + 2;
 
@@ -302,7 +357,7 @@ void cc2541::begin(unsigned char advertisementDataType,
 
     this->sendSetupMessage(&setupMsg);
   }
-
+*/
   // GATT
   unsigned short gattSetupMsgOffset = 0;
   unsigned short handle             = 1;
@@ -319,7 +374,7 @@ void cc2541::begin(unsigned char advertisementDataType,
 
     if (localAttributeType == BLETypeService) {
       BLEService* service = (BLEService *)localAttribute;
-
+/*
       setupMsgData->length  = 12 + uuidLength;
 
       setupMsgData->data[0] = 0x04;
@@ -338,7 +393,11 @@ void cc2541::begin(unsigned char advertisementDataType,
 
       memcpy(&setupMsgData->data[9], uuidData, uuidLength);
 
-      this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);
+      this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);*/
+      rc = GATT_AddService(numLocalAttributes);
+      dbgPrint("GATT_AddService ... Done");
+      dbgPrint(rc);
+
     } else if (localAttributeType == BLETypeCharacteristic) {
       BLECharacteristic* characteristic = (BLECharacteristic *)localAttribute;
       unsigned char properties = characteristic->properties();
@@ -389,7 +448,7 @@ void cc2541::begin(unsigned char advertisementDataType,
           pipe++;
         }
       }
-
+/*
       setupMsgData->length   = 15 + uuidLength;
 
       setupMsgData->data[0]  = 0x04;
@@ -473,7 +532,14 @@ void cc2541::begin(unsigned char advertisementDataType,
       setupMsgData->data[8]  = ACI_STORE_LOCAL;
 
       this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);
+*/
+      rc = GATT_AddAttribute ((uint8_t *)uuidData, 2, 
+                (properties & (BLEWrite | BLEWriteWithoutResponse)) ?
+                 GATT_PERMIT_WRITE : GATT_PERMIT_READ);
 
+      dbgPrint("GATT_AddAttribute ... Done");
+      dbgPrint(rc);
+/*
       int valueOffset = 0;
 
       while(valueOffset < valueSize) {
@@ -519,9 +585,10 @@ void cc2541::begin(unsigned char advertisementDataType,
 
         this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);
       }
+*/
     } else if (localAttributeType == BLETypeDescriptor) {
       BLEDescriptor* descriptor = (BLEDescriptor *)localAttribute;
-
+/*
       setupMsgData->length   = 12;
 
       setupMsgData->data[0]  = 0x04;
@@ -558,6 +625,7 @@ void cc2541::begin(unsigned char advertisementDataType,
 
         valueOffset += chunkSize;
       }
+*/
     }
   }
 
@@ -790,9 +858,9 @@ void cc2541::begin(unsigned char advertisementDataType,
   setupMsgData->length   = 6;
   setupMsgData->data[0]  = 3;
 
-  this->sendSetupMessage(&setupMsg, 0xf, crcOffset, true);
+  this->sendSetupMessage(&setupMsg, 0xf, crcOffset);
 
-  */
+ 
 }
 
 #define RX_BUFFER_MAX_LEN  255
@@ -804,7 +872,7 @@ typedef struct {
 
 rx_buffer_t rx_buffer;
 
-
+void rx_msg_clean(void);
 void rx_msg_clean(void) {
     dbgPrintln(rx_buffer.data);
     dbgPrintln(F("Cleaning buffer ..."));
@@ -841,6 +909,9 @@ bool processCommandStatus() {
         done = true;
     }
     if (rx_buffer.data[2] && rx_buffer.data[3]) {
+        if (!initDone) {
+           initDone = true; 
+        }
         dbgPrint(F("SUCCESS"));
     } else {
         dbgPrint(F("FAILED"));
@@ -1551,8 +1622,15 @@ void cc2541::waitForSetupMode()
     }
   }
   */
-
-  dbgPrint(F("waitForSetupMode"));
+  uint32_t counter = 0;
+  while (!initDone) {
+    if (counter > 10) {
+       dbgPrint(F("waitForSetupMode ..."));
+       break;
+    }
+    counter++;
+    delay(100);
+  }
 }
 
 
