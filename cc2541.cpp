@@ -12,6 +12,11 @@
 #include "BLEUuid.h"
 
 #include "cc2541.h"
+#include "GAPcc2541.h"
+
+#define GAPCODE(ogf, ocf) (ocf | ogf << 8)
+
+volatile int debug2=0;
 
 struct setupMsgData {
   unsigned char length;
@@ -798,6 +803,7 @@ typedef struct {
     char data[RX_BUFFER_MAX_LEN];
     uint16_t len;
     bool complete;
+    uint16_t paramCounter;
 } rx_buffer_t;
 
 rx_buffer_t rx_buffer;
@@ -806,11 +812,13 @@ rx_buffer_t rx_buffer;
 void rx_msg_clean(void) {
     dbgPrintln(rx_buffer.data);
     dbgPrintln(F("Cleaning buffer ..."));
-    memset(&rx_buffer, 0, sizeof(rx_buffer_t));
+    memset(&rx_buffer, 0xa5, sizeof(rx_buffer_t));
+    rx_buffer.len=0;
+    rx_buffer.paramCounter=0;
 }
 
 bool store_rx_msg_data(uint8_t data) {
-    if (data < (RX_BUFFER_MAX_LEN-1)) {
+    if (rx_buffer.len < (RX_BUFFER_MAX_LEN-1)) {
         rx_buffer.data[rx_buffer.len] = data;
         rx_buffer.len++;
 
@@ -823,9 +831,33 @@ bool processVendorSpecificEvent() {
     uint16_t i = 0;
     bool done = false;
 
+    
     if (rx_buffer.len <= 3 ) {
-        return done;
+        done = false;
+    } else {
+        rx_buffer.paramCounter++;
     }
+
+    // when all the params are received, exit with true
+    if  (rx_buffer.paramCounter == rx_buffer.data[HCI_MESSAGE_LEN] ) {    
+        dbgPrint(F("processVendorSpecificEvent SUCCESS")); 
+          
+        switch(GAPCODE(rx_buffer.data[GAP_CODE_POSITION+1], rx_buffer.data[GAP_CODE_POSITION])) { 
+            case GAP_DeviceInitDone:
+            if (rx_buffer.data[GAP_ERROR_CODE_POS] == GAP_ERR_SUCCESS)
+                debug2++;
+            break;
+            
+            case GAP_CommandStatus:
+            if (rx_buffer.data[GAP_ERROR_CODE_POS] == GAP_ERR_SUCCESS)
+                debug2++;
+            break;
+            
+            default:
+            break;
+        } 
+        done = true;
+    } 
 
     return done;
 }
@@ -850,10 +882,12 @@ bool processEvent()
     uint16_t i = 0;
     bool done = false;
     
-    if (rx_buffer.len <= 2 ) {
+    if (rx_buffer.len <= HCI_MESSAGE_LEN ) {
         return done;
-    }
-
+    } else if (rx_buffer.len == HCI_MESSAGE_LEN ) {
+        rx_buffer.paramCounter=0; // reach the paramLenField, reset Counter
+    }        
+    
     switch (rx_buffer.data[1]) {
        
     case Ev_Vendor_Specific:  // Vendor specific Event Opcode
@@ -899,9 +933,9 @@ void cc2541::poll() {
         process_rx_msg_data();
     }
 
-      GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
-      //sendSetupMessage();
-      dbgPrint("Make Discoverable");
+//       GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
+//       //sendSetupMessage();
+//       dbgPrint("Make Discoverable"
   // We enter the if statement only when there is a ACI event available to be processed
 /*
   if (lib_aci_event_get(&this->_aciState, &this->_aciData)) {

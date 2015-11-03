@@ -5,6 +5,18 @@
 #include <stdint-gcc.h>
 
 /*
+ 1    5    9    13   17   21   25   28
++----+----+----+----+----+----+----+----+
+|    |    |    |    |    |    |    |    |
+|    |    |    |    |    |    |    |    |
++----+----+----+----+----+----+----+----+
+|    |    |    |    |    |    |    |    |
+|    |    |    |    |    |    |    |    |
++----+----+----+----+----+----+----+----+
+|    |    |    |    |    |    |    |    |
+|    |    |    |    |    |    |    |    |
++----+----+----+----+----+----+----+----+
+
 The HCI supports four types of packets:
 Command Packet,
 Asynchronous Data Packet,
@@ -18,9 +30,21 @@ The packet type has the following value
 #define HCI_ASYNCHRONOUS_DATA   0x02
 #define HCI_SYNCHRONOUS_DATA    0x03
 #define HCI_EVENT               0x04
-//--------------------------------------------------------------------------------------
 
-/*
+
+/*-------------------------EVENTS-------------------------------------------------------------
+ 1    5    9    13   17   21   25   28
++----+----+----+----+----+----+----+----+
+|  Event  |Parameter|   Event Parameter |
+|  Code   |Total len|         0         |
++----+----+----+----+----+----+----+----+
+|   Event Parameter |       ......      |
+|         1         |       ......      |
++----+----+----+----+----+----+----+----+
+|   Event Parameter |   Event Parameter |
+|        N-1        |         N         |
++----+----+----+----+----+----+----+----+
+
 HCI events use an 8-bit event code.
 All event codes are unique for BT and BLE.
 Only event code 255 is reserved for vendor specific events.
@@ -81,5 +105,9 @@ The table below provides an error code description for each failure error code.
 #define INVALID_TASK_ID 0xFF
 
 
+
+
+#define HCI_MESSAGE_LEN   0x02
+#define GAP_CODE_POSITION 0x03
 #endif
 
