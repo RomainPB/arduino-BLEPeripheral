@@ -4,7 +4,7 @@
 #include "Arduino.h"
 
 //#include <utility/lib_aci.h>
-#include "hci.h"
+#include "utility/HCI/hci.h"
 #include "BLEDevice.h"
 
 

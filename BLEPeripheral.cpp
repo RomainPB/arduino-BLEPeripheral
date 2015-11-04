@@ -14,7 +14,7 @@
 BLEPeripheral::BLEPeripheral(unsigned char req, unsigned char rdy, unsigned char rst) :
 #if defined(NRF51) || defined(__RFduino__)
   _nRF51822(),
-#elif defined(NRFCC2541)
+#elif defined(NRFCC2541) || defined(ARDUINO_SAMD_SMARTEVERYTHING)
   _cc2541(req, rdy, rst),
 #else
   _nRF8001(req, rdy, rst),
@@ -44,7 +44,7 @@ BLEPeripheral::BLEPeripheral(unsigned char req, unsigned char rdy, unsigned char
 {
 #if defined(NRF51) || defined(__RFduino__)
   this->_device = &this->_nRF51822;
-#elif defined(NRFCC2541)
+#elif defined(NRFCC2541) || defined(ARDUINO_SAMD_SMARTEVERYTHING)
   this->_device = &this->_cc2541;
 #else
   this->_device = &this->_nRF8001;
