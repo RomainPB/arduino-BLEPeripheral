@@ -12,6 +12,11 @@
 #include "BLEUuid.h"
 
 #include "cc2541.h"
+#include "GAPcc2541.h"
+
+#define GAPCODE(ogf, ocf) (ocf | ogf << 8)
+
+volatile int debug2=0;
 
 struct setupMsgData {
   unsigned char length;
@@ -31,6 +36,92 @@ static bool initDone = false;
 /* Having PROGMEM here caused the setup messages to be zeroed out */
 static const hal_hci_data_t baseSetupMsgs[NB_BASE_SETUP_MESSAGES] /*PROGMEM*/ = {};
 
+#define MAX_HCI_MSG_SIZE  255
+#define MAX_HCI_CALLBACKS  64
+typedef struct msg_t_ {
+    uint8_t  buf[MAX_HCI_MSG_SIZE];
+    uint16_t len;
+} hci_msg_t;
+
+class HciDispatchPool {
+    hci_msg_t hci_msg[MAX_HCI_CALLBACKS];
+    uint16_t msg_num;
+
+    int delMsg(uint16_t index);
+public:
+    HciDispatchPool();
+    int addMsg(uint8_t *msg, uint16_t len);
+    int sendNextMsg(void );
+};
+
+
+HciDispatchPool *hci_tx_pool;
+HciDispatchPool::HciDispatchPool(void) 
+{
+    memset(hci_msg, 0, sizeof(hci_msg_t)*MAX_HCI_CALLBACKS);
+    msg_num=0;
+}
+
+int HciDispatchPool::delMsg(uint16_t index) {
+    
+    if ((!hci_tx_pool) || (index >=MAX_HCI_CALLBACKS)) {
+        return -1;
+    }
+
+    if (hci_msg[index].len) {
+        memcpy(hci_msg[index].buf, 0, MAX_HCI_CALLBACKS);
+        hci_msg[index].len = 0;
+        msg_num--;
+    }
+
+    return 0;
+}
+
+int HciDispatchPool::sendNextMsg(void) {
+    
+    if (!msg_num) {
+        return 0;
+    }
+
+    for (int i = 0 ; (i < MAX_HCI_CALLBACKS) ; ++i) {
+        if (hci_msg[i].len) {
+            BLE.write(hci_msg[i].buf, hci_msg[i].len);
+            delMsg(i);
+        } 
+    }
+    return 0;
+}
+
+
+int HciDispatchPool::addMsg(uint8_t *msg, uint16_t len) {
+ 
+    uint16_t counter = 0;
+    uint16_t i = 0;
+  
+    if ((len >= MAX_HCI_MSG_SIZE) || !hci_tx_pool) {
+        return -1;
+    }
+
+    for (i = 0 ; (i < MAX_HCI_CALLBACKS) ; ++i) {
+        if (hci_msg[i].len) {
+            counter++;
+        }
+        if (counter = msg_num) {
+            ++i; //next msg
+            break;
+        }
+    }
+
+    if (i >= MAX_HCI_CALLBACKS) 
+        return -1;
+
+     memcpy(hci_msg[i].buf, msg, len);
+     hci_msg[i].len = len;
+     msg_num++;
+    
+    return 0;   
+}
+
 
 cc2541::cc2541(unsigned char req, unsigned char rdy, unsigned char rst) :
   BLEDevice(),
@@ -48,6 +139,7 @@ cc2541::cc2541(unsigned char req, unsigned char rdy, unsigned char rst) :
   _dynamicDataSequenceNo(0),
   _storeDynamicData(false)
 {
+    hci_tx_pool = new HciDispatchPool();
 }
 
 cc2541::~cc2541() {
@@ -92,8 +184,9 @@ int GAP_DeviceInit(uint8_t profileRole, uint8_t maxScanResponses, uint8_t *pIRK,
     memcpy(&buf[len], pSignCounter, 4); //  SignCounter
     len += 4;
 
-    BLE.write(buf, len);
-
+   // BLE.write(buf, len);
+    
+    hci_tx_pool->addMsg(buf, len);
     return 1;
 }
 
@@ -127,7 +220,7 @@ int GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType, uint8_t *
     buf[len++] = channelMap;
     buf[len++] = filterPolicy;
 
-    BLE.write(buf, len);
+    hci_tx_pool->addMsg(buf, len);
 
     return 1;
 }
@@ -150,8 +243,8 @@ int GATT_AddService(uint16_t nAttributes)
 	buf[len++] = nAttributes && 0xFF;
 	buf[len++] = (nAttributes && 0xFF00) >> 8;
     buf[len++] =  7; // encKey = 7..16
-	BLE.write(buf, len);
-
+	//BLE.write(buf, len);
+    hci_tx_pool->addMsg(buf, len);
 	return 1;
 }
 
@@ -183,7 +276,8 @@ int GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permission)
    
     buf[len++] = permission;
 
-	BLE.write(buf, len);
+	//BLE.write(buf, len);
+    hci_tx_pool->addMsg(buf, len);
 
 	return 1;
 }
@@ -209,7 +303,6 @@ void cc2541::begin(unsigned char advertisementDataType,
   rc = GAP_DeviceInit (GAP_PROFILE_PERIPHERAL, 3, irk, srk, sig_counter);
   dbgPrint("Begin ... Init Done");
   dbgPrint(rc);
- 
 
   for (int i = 0; i < numLocalAttributes; i++) {
     BLELocalAttribute* localAttribute = localAttributes[i];
@@ -249,7 +342,7 @@ void cc2541::begin(unsigned char advertisementDataType,
   }
 
   this->_localPipeInfo = (struct localPipeInfo*)malloc(sizeof(struct localPipeInfo) * numLocalPipedCharacteristics);
-
+/*
   unsigned char numRemoteServices = 0;
   unsigned char numRemotePipedCharacteristics = 0;
   unsigned char numRemotePipes = 0;
@@ -297,7 +390,7 @@ void cc2541::begin(unsigned char advertisementDataType,
   }
 
   this->_remotePipeInfo = (struct remotePipeInfo*)malloc(sizeof(struct remotePipeInfo) * numRemotePipedCharacteristics);
-
+*/
   this->waitForSetupMode();
 
   hal_hci_data_t setupMsg;
@@ -394,7 +487,7 @@ void cc2541::begin(unsigned char advertisementDataType,
       memcpy(&setupMsgData->data[9], uuidData, uuidLength);
 
       this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);*/
-      rc = GATT_AddService(numLocalAttributes);
+      //rc = GATT_AddService(numLocalAttributes);
       dbgPrint("GATT_AddService ... Done");
       dbgPrint(rc);
 
@@ -533,12 +626,13 @@ void cc2541::begin(unsigned char advertisementDataType,
 
       this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);
 */
-      rc = GATT_AddAttribute ((uint8_t *)uuidData, 2, 
-                (properties & (BLEWrite | BLEWriteWithoutResponse)) ?
-                 GATT_PERMIT_WRITE : GATT_PERMIT_READ);
+      //rc = GATT_AddAttribute ((uint8_t *)uuidData, 2, 
+      //          (properties & (BLEWrite | BLEWriteWithoutResponse)) ?
+      //           GATT_PERMIT_WRITE : GATT_PERMIT_READ);
 
       dbgPrint("GATT_AddAttribute ... Done");
       dbgPrint(rc);
+      this->waitForSetupMode();
 /*
       int valueOffset = 0;
 
@@ -630,7 +724,7 @@ void cc2541::begin(unsigned char advertisementDataType,
   }
 
   this->_numLocalPipeInfo = numLocalPiped;
-
+/*
   // terminator
   setupMsgData->length   = 4;
 
@@ -859,8 +953,8 @@ void cc2541::begin(unsigned char advertisementDataType,
   setupMsgData->data[0]  = 3;
 
   this->sendSetupMessage(&setupMsg, 0xf, crcOffset);
-
- 
+*/
+  hci_tx_pool->sendNextMsg();
 }
 
 #define RX_BUFFER_MAX_LEN  255
@@ -868,6 +962,7 @@ typedef struct {
     char data[RX_BUFFER_MAX_LEN];
     uint16_t len;
     bool complete;
+    uint16_t paramCounter;
 } rx_buffer_t;
 
 rx_buffer_t rx_buffer;
@@ -876,12 +971,13 @@ void rx_msg_clean(void);
 void rx_msg_clean(void) {
     dbgPrintln(rx_buffer.data);
     dbgPrintln(F("Cleaning buffer ..."));
-    memset(&rx_buffer, 0, sizeof(rx_buffer_t));
+    memset(&rx_buffer, 0xa5, sizeof(rx_buffer_t));
+    rx_buffer.len=0;
+    rx_buffer.paramCounter=0;
 }
 
 bool store_rx_msg_data(uint8_t data) {
-    
-    if (data < (RX_BUFFER_MAX_LEN-1)) {
+    if (rx_buffer.len < (RX_BUFFER_MAX_LEN-1)) {
         rx_buffer.data[rx_buffer.len] = data;
         rx_buffer.len++;
 
@@ -894,9 +990,34 @@ bool processVendorSpecificEvent() {
     uint16_t i = 0;
     bool done = false;
 
+    
     if (rx_buffer.len <= 3 ) {
-        return done;
+        done = false;
+    } else {
+        rx_buffer.paramCounter++;
     }
+
+    // when all the params are received, exit with true
+    if  (rx_buffer.paramCounter == rx_buffer.data[HCI_MESSAGE_LEN] ) {    
+        dbgPrint(F("processVendorSpecificEvent SUCCESS")); 
+          
+        switch(GAPCODE(rx_buffer.data[GAP_CODE_POSITION+1], rx_buffer.data[GAP_CODE_POSITION])) { 
+            case GAP_DeviceInitDone:
+            if (rx_buffer.data[GAP_ERROR_CODE_POS] == GAP_ERR_SUCCESS)
+                debug2++;
+            hci_tx_pool->sendNextMsg();
+            break;
+            
+            case GAP_CommandStatus:
+            if (rx_buffer.data[GAP_ERROR_CODE_POS] == GAP_ERR_SUCCESS)
+                debug2++;
+            break;
+            
+            default:
+            break;
+        } 
+        done = true;
+    } 
 
     return done;
 }
@@ -911,6 +1032,8 @@ bool processCommandStatus() {
     if (rx_buffer.data[2] && rx_buffer.data[3]) {
         if (!initDone) {
            initDone = true; 
+        } else {
+           hci_tx_pool->sendNextMsg();
         }
         dbgPrint(F("SUCCESS"));
     } else {
@@ -923,23 +1046,25 @@ bool processEvent()
 {
     uint16_t i = 0;
     bool done = false;
-
-    if (rx_buffer.len <= 2 ) {
+    
+    if (rx_buffer.len <= HCI_MESSAGE_LEN ) {
         return done;
-    }
-
+    } else if (rx_buffer.len == HCI_MESSAGE_LEN ) {
+        rx_buffer.paramCounter=0; // reach the paramLenField, reset Counter
+    }        
+    
     switch (rx_buffer.data[1]) {
        
-    case 0xFF:  // Vendor specific Event Opcode
+    case Ev_Vendor_Specific:  // Vendor specific Event Opcode
         done = processVendorSpecificEvent();
     break;
 
-    case 0x0F:  // Command Status
+    case EV_Command_Status:  // Command Status
         done = processCommandStatus();
     break;
     
-    case 0x0E:  // Command Complete
-    case 0x3E:  // LE Event Opcode
+    case EV_Command_Complete:  // Command Complete
+    case EV_LE_Event_Code:     // LE Event Opcode
     default:
     break;
     
@@ -952,7 +1077,7 @@ void process_rx_msg_data() {
     bool done = false;
 
     switch (rx_buffer.data[0]) {
-    case 4:  // Event
+    case HCI_EVENT:  // Event
         done = processEvent();
     break;
      
@@ -973,10 +1098,9 @@ void cc2541::poll() {
         process_rx_msg_data();
     }
 
-      GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
-      //sendSetupMessage();
-      dbgPrint("Make Discoverable");
-
+//       GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
+//       //sendSetupMessage();
+//       dbgPrint("Make Discoverable"
   // We enter the if statement only when there is a ACI event available to be processed
 /*
   if (lib_aci_event_get(&this->_aciState, &this->_aciData)) {
