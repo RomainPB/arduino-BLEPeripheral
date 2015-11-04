@@ -19,7 +19,7 @@
 
 #if defined(NRF51) || defined(__RFduino__)
   #include "nRF51822.h"
-#elif (NRFCC2541)
+#elif defined(NRFCC2541) || defined(ARDUINO_SAMD_SMARTEVERYTHING)
   #include "cc2541.h"
 #else
   #include "nRF8001.h"
@@ -104,7 +104,7 @@ class BLEPeripheral : public BLEDeviceEventListener,
 
   private:
     BLEDevice*                     _device;
-#if defined(NRFCC2541)
+#if defined(NRFCC2541) || defined(ARDUINO_SAMD_SMARTEVERYTHING)
     cc2541                         _cc2541;
 #elif defined(NRF51) || defined(__RFduino__)
     nRF51822                       _nRF51822;
