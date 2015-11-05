@@ -1,8 +1,5 @@
 #if defined(NRFCC2541)
 
-#include <hci.h>
-#include <hci_cmds.h>
-
 #include "BLECharacteristic.h"
 #include "BLEDescriptor.h"
 #include "BLERemoteService.h"
@@ -11,8 +8,10 @@
 #include "BLEUtil.h"
 #include "BLEUuid.h"
 
+#include "utility/HCI/hci.h"
+#include "utility/HCI/hci_cmds.h"
+#include "utility/HCI/GAPcc2541.h"
 #include "cc2541.h"
-#include "GAPcc2541.h"
 
 #define GAPCODE(ogf, ocf) (ocf | ogf << 8)
 
@@ -69,7 +68,7 @@ int HciDispatchPool::delMsg(uint16_t index) {
     }
 
     if (hci_msg[index].len) {
-        memcpy(hci_msg[index].buf, 0, MAX_HCI_CALLBACKS);
+        memset(hci_msg[index].buf, 0, MAX_HCI_MSG_SIZE);
         hci_msg[index].len = 0;
         msg_num--;
     }
@@ -87,6 +86,7 @@ int HciDispatchPool::sendNextMsg(void) {
         if (hci_msg[i].len) {
             BLE.write(hci_msg[i].buf, hci_msg[i].len);
             delMsg(i);
+            break;
         } 
     }
     return 0;
@@ -102,18 +102,17 @@ int HciDispatchPool::addMsg(uint8_t *msg, uint16_t len) {
         return -1;
     }
 
-    for (i = 0 ; (i < MAX_HCI_CALLBACKS) ; ++i) {
-        if (hci_msg[i].len) {
-            counter++;
-        }
-        if (counter = msg_num) {
-            ++i; //next msg
-            break;
+    if (msg_num) {
+        while (counter != msg_num) {
+            if (i >= MAX_HCI_CALLBACKS) 
+                return -1;
+
+            if (hci_msg[i].len) {
+                counter++;
+            }
+            i++;
         }
     }
-
-    if (i >= MAX_HCI_CALLBACKS) 
-        return -1;
 
      memcpy(hci_msg[i].buf, msg, len);
      hci_msg[i].len = len;
@@ -391,7 +390,7 @@ void cc2541::begin(unsigned char advertisementDataType,
 
   this->_remotePipeInfo = (struct remotePipeInfo*)malloc(sizeof(struct remotePipeInfo) * numRemotePipedCharacteristics);
 */
-  this->waitForSetupMode();
+ // this->waitForSetupMode();
 
   hal_hci_data_t setupMsg;
   struct setupMsgData* setupMsgData = (struct setupMsgData*)setupMsg.buffer;
@@ -487,7 +486,7 @@ void cc2541::begin(unsigned char advertisementDataType,
       memcpy(&setupMsgData->data[9], uuidData, uuidLength);
 
       this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);*/
-      //rc = GATT_AddService(numLocalAttributes);
+      rc = GATT_AddService(numLocalAttributes);
       dbgPrint("GATT_AddService ... Done");
       dbgPrint(rc);
 
@@ -626,13 +625,13 @@ void cc2541::begin(unsigned char advertisementDataType,
 
       this->sendSetupMessage(&setupMsg, 0x2, gattSetupMsgOffset);
 */
-      //rc = GATT_AddAttribute ((uint8_t *)uuidData, 2, 
-      //          (properties & (BLEWrite | BLEWriteWithoutResponse)) ?
-      //           GATT_PERMIT_WRITE : GATT_PERMIT_READ);
+      rc = GATT_AddAttribute ((uint8_t *)uuidData, 2, 
+                (properties & (BLEWrite | BLEWriteWithoutResponse)) ?
+                 GATT_PERMIT_WRITE : GATT_PERMIT_READ);
 
       dbgPrint("GATT_AddAttribute ... Done");
       dbgPrint(rc);
-      this->waitForSetupMode();
+      //this->waitForSetupMode();
 /*
       int valueOffset = 0;
 
