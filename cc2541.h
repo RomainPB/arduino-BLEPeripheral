@@ -8,6 +8,8 @@
 #include "BLEDevice.h"
 
 
+extern bool testOK;
+
 /** Data type for ACI commands and events */
 #define HAL_HCI_MAX_LENGTH    32
 

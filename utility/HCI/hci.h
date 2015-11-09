@@ -106,8 +106,10 @@ The table below provides an error code description for each failure error code.
 
 
 
-
-#define HCI_MESSAGE_LEN   0x02
-#define GAP_CODE_POSITION 0x03
+#define HCI_PACKET_TYPE_POS   0x00
+#define HCI_EVENT_TYPE_POS    0x01
+#define HCI_MESSAGE_LEN_POS   0x02
+#define HCI_GAP_CODE_POS      0x03
+#define HCI_COMMAND_COMPLETE_CODE_POS 0x03
 #endif
 

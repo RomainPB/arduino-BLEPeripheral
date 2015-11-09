@@ -54,5 +54,5 @@
 
 
 
-#define GAP_ERROR_CODE_POS          GAP_CODE_POSITION+2
+#define GAP_ERROR_CODE_POS          HCI_GAP_CODE_POS+2
 #endif
