@@ -6,6 +6,8 @@
 //#include <utility/lib_aci.h>
 #include "utility/HCI/hci.h"
 #include "BLEDevice.h"
+#include "utility/ASME/HciDispatchPool.h"
+#include "utility/HCI/HCIProcessAnswer.h"
 
 
 extern bool testOK;
@@ -111,8 +113,14 @@ class cc2541 : protected BLEDevice
     unsigned int                _dynamicDataOffset;
     unsigned char               _dynamicDataSequenceNo;
     bool                        _storeDynamicData;
+    HciDispatchPool             *hci_tx_pool;
+    HCIProcessAnswer            *hci_rx_process;    
+    
+    private:
+    int GAP_DeviceInit(uint8_t profileRole, uint8_t maxScanResponses, uint8_t *pIRK, uint8_t *pSRK, uint32_t *pSignCounter );
+    int GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType, uint8_t *initiatorAddr, uint8_t channelMap, uint8_t filterPolicy);
+    int GATT_AddService(uint16_t nAttributes);
+    int GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permission);
 };
 
-#define dbgPrint(x) Serial1.println(x)
-#define dbgPrintln(x) Serial1.println(x)
 #endif

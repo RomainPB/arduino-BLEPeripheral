@@ -12,8 +12,8 @@
 #include "utility/HCI/hci_cmds.h"
 #include "utility/HCI/GAPcc2541.h"
 #include "cc2541.h"
-
-#define GAPCODE(ogf, ocf) (ocf | ogf << 8)
+#include "utility/ASME/HciUart.h"
+#include "utility/ASME/ASMEDebug.h"
 
 struct setupMsgData {
   unsigned char length;
@@ -29,133 +29,8 @@ struct setupMsgData {
 #define DYNAMIC_DATA_MAX_CHUNK_SIZE             26
 #define DYNAMIC_DATA_SIZE                       (DYNAMIC_DATA_MAX_CHUNK_SIZE * 6)
 
-static bool initDone = false;
 /* Having PROGMEM here caused the setup messages to be zeroed out */
 static const hal_hci_data_t baseSetupMsgs[NB_BASE_SETUP_MESSAGES] /*PROGMEM*/ = {};
-
-#define MAX_HCI_MSG_SIZE  255
-#define MAX_HCI_CALLBACKS  64
-typedef struct msg_t_ {
-    uint8_t  buf[MAX_HCI_MSG_SIZE];
-    uint16_t len;
-} hci_msg_t;
-
-class HciDispatchPool {
-    hci_msg_t hci_msg[MAX_HCI_CALLBACKS];
-    uint16_t msg_num;
-
-    int delMsg(uint16_t index);
-public:
-    HciDispatchPool();
-    int addMsg(uint8_t *msg, uint16_t len);
-    int sendNextMsg(void );
-};
-
-
-#define RX_BUFFER_MAX_LEN  255
-typedef enum {
-    noError,
-    started,
-    partial,
-    error
-}messageProcessedE;
-
-typedef struct {
-    char data[RX_BUFFER_MAX_LEN];
-    uint16_t len;
-    bool complete;
-    uint16_t paramCounter;
-    messageProcessedE messageProcessed;
-} rx_buffer_t;
-
-rx_buffer_t rx_buffer;
-volatile int debugMsgSent=0, debug=0;
-
-
-HciDispatchPool *hci_tx_pool;
-HciDispatchPool::HciDispatchPool(void) 
-{
-    memset(hci_msg, 0, sizeof(hci_msg_t)*MAX_HCI_CALLBACKS);
-    msg_num=0;
-}
-
-int HciDispatchPool::delMsg(uint16_t index) {
-    
-    if ((!hci_tx_pool) || (index >=MAX_HCI_CALLBACKS)) {
-        return -1;
-    }
-
-    if (hci_msg[index].len) {
-        memset(hci_msg[index].buf, 0, MAX_HCI_MSG_SIZE);
-        hci_msg[index].len = 0;
-        msg_num--;
-    }
-
-    return 0;
-}
-
-void rx_msg_clean(void) {
-    dbgPrintln(rx_buffer.data);
-    dbgPrintln(F("Cleaning buffer ..."));
-    memset(rx_buffer.data, 0xa5, RX_BUFFER_MAX_LEN);
-    rx_buffer.len=0;
-    rx_buffer.paramCounter=0;
-}
-
-void sendMsg(uint8_t *buf ,uint8_t len) {
-    debugMsgSent++;
-    rx_buffer.messageProcessed = started;
-    rx_msg_clean();
-    BLE.write(buf, len);
-}
-
-int HciDispatchPool::sendNextMsg(void) {
-    
-    if (!msg_num) {
-        return 0;
-    }
-
-    for (int i = 0 ; (i < MAX_HCI_CALLBACKS) ; ++i) {
-        if (hci_msg[i].len) {
-            sendMsg(hci_msg[i].buf, hci_msg[i].len);
-            /*BLE.write(hci_msg[i].buf, hci_msg[i].len);*/
-            delMsg(i);
-            break;
-        } 
-    }
-    return 0;
-}
-
-
-int HciDispatchPool::addMsg(uint8_t *msg, uint16_t len) {
- 
-    uint16_t counter = 0;
-    uint16_t i = 0;
-  
-    if ((len >= MAX_HCI_MSG_SIZE) || !hci_tx_pool) {
-        return -1;
-    }
-
-    if (msg_num) {
-
-        while (counter != msg_num) {
-            if (i >= MAX_HCI_CALLBACKS) 
-                return -1;
-
-            if (hci_msg[i].len) {
-                counter++;
-            }
-            i++;
-        }
-    }
-
-     memcpy(hci_msg[i].buf, msg, len);
-     hci_msg[i].len = len;
-     msg_num++;
-    
-    return 0;   
-}
-
 
 cc2541::cc2541(unsigned char req, unsigned char rdy, unsigned char rst) :
   BLEDevice(),
@@ -172,8 +47,7 @@ cc2541::cc2541(unsigned char req, unsigned char rdy, unsigned char rst) :
   _dynamicDataOffset(0),
   _dynamicDataSequenceNo(0),
   _storeDynamicData(false)
-{
-    hci_tx_pool = new HciDispatchPool();
+{    
 }
 
 cc2541::~cc2541() {
@@ -199,7 +73,7 @@ uint8_t srk[GAP_RK_SIZE] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 uint32_t sig_counter[GAP_RK_SIZE] = {1,0,0,0};
 
 
-int GAP_DeviceInit(uint8_t profileRole, uint8_t maxScanResponses, uint8_t *pIRK, uint8_t *pSRK, uint32_t *pSignCounter )
+int cc2541 :: GAP_DeviceInit(uint8_t profileRole, uint8_t maxScanResponses, uint8_t *pIRK, uint8_t *pSRK, uint32_t *pSignCounter )
 {
     uint8_t buf[42];
     uint8_t len = 0;
@@ -235,7 +109,7 @@ int GAP_DeviceInit(uint8_t profileRole, uint8_t maxScanResponses, uint8_t *pIRK,
 #define ADDRTYPE_PRIVATE_RESOLVE  3
 uint8_t addr[6] = {0,0,0,0,0,0};
 
-int GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType, uint8_t *initiatorAddr, 
+int cc2541 :: GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType, uint8_t *initiatorAddr, 
                          uint8_t channelMap, uint8_t filterPolicy)
 {
     uint8_t buf[42] = {};
@@ -260,7 +134,7 @@ int GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType, uint8_t *
 
 
 	
-int GATT_AddService(uint16_t nAttributes)
+int cc2541 :: GATT_AddService(uint16_t nAttributes)
 {
 	uint8_t buf[42] = {};
 	uint8_t len = 0;
@@ -292,7 +166,7 @@ uint8_t gatt_uuid[GATT_UUID_SIZE] = {'L','E','D',0,0,0,0,0,0,0,0,0,0,0,0,0};
 #define GATT_PERMIT_AUTHOR_READ  0x10	
 #define GATT_PERMIT_AUTHOR_WRITE 0x20
 
-int GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permission)
+int cc2541 :: GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permission)
 {
 	uint8_t buf[42] = {};
 	uint8_t len = 0;
@@ -330,8 +204,10 @@ void cc2541::begin(unsigned char advertisementDataType,
   int rc = 0;
   
   Serial1.begin(115200);
-  BLE.begin(115200);
-
+  HciUart *bleUart = new HciUart();
+  hci_tx_pool = new HciDispatchPool(bleUart);
+  hci_rx_process = new HCIProcessAnswer(bleUart, hci_tx_pool);
+  
   rc = GAP_DeviceInit (GAP_PROFILE_PERIPHERAL, 3, irk, srk, sig_counter);
   dbgPrint("Begin ... Init Done");
   dbgPrint(rc);
@@ -373,7 +249,7 @@ void cc2541::begin(unsigned char advertisementDataType,
     }
   }
 
-  this->_localPipeInfo = (struct localPipeInfo*)malloc(sizeof(struct localPipeInfo) * numLocalPipedCharacteristics);
+ /* this->_localPipeInfo = (struct localPipeInfo*)malloc(sizeof(struct localPipeInfo) * numLocalPipedCharacteristics);
 
  // this->waitForSetupMode();
 
@@ -471,175 +347,19 @@ void cc2541::begin(unsigned char advertisementDataType,
 
   this->_numLocalPipeInfo = numLocalPiped;
 
-
+*/
   hci_tx_pool->sendNextMsg();
-}
-
-
-bool store_rx_msg_data(uint8_t data) {    if (rx_buffer.len < (RX_BUFFER_MAX_LEN-1)) {
-        rx_buffer.data[rx_buffer.len] = data;
-        rx_buffer.len++;
-
-    } else {
-        rx_msg_clean();
-    }
-}
-
-bool processVendorSpecificEvent() {
-    uint16_t i = 0;
-    bool done = false;
-
-    
-    if (rx_buffer.len <= HCI_GAP_CODE_POS ) {
-        done = false;
-    } else {
-        rx_buffer.paramCounter++;
-    }
-
-    if ((debugMsgSent==6) && (rx_buffer.paramCounter==5))
-        debug++;
-    // when all the params are received, exit with true
-    if  (rx_buffer.paramCounter == rx_buffer.data[HCI_MESSAGE_LEN_POS] ) {  
-
-
-         dbgPrint(F("processVendorSpecificEvent SUCCESS")); 
-          
-        uint16_t gapCode = GAPCODE(rx_buffer.data[HCI_GAP_CODE_POS+1], rx_buffer.data[HCI_GAP_CODE_POS]);
-        
-        switch(gapCode) {        
-            case GAP_CommandStatus:
-            if (rx_buffer.data[GAP_ERROR_CODE_POS] == GAP_ERR_SUCCESS) 
-                rx_buffer.messageProcessed = partial;
-            else
-                rx_buffer.messageProcessed = error;
-
-            break;
-            
-            case GAP_DeviceInitDone:
-            if (rx_buffer.data[GAP_ERROR_CODE_POS] == GAP_ERR_SUCCESS) {
-                rx_buffer.messageProcessed = noError;
-                hci_tx_pool->sendNextMsg();
-             } else
-                rx_buffer.messageProcessed = error;
-            break;
-            
-            default:
-            break;
-        } 
-        done = true;
-    } 
-
-    return done;
-}
-
-bool processCommandStatus() {
-    uint16_t i = 0;
-    bool done = false;
-
-    if (rx_buffer.len == (2+(rx_buffer.data[HCI_MESSAGE_LEN_POS]) )) {
-        done = true;
-    }
-
-    if (rx_buffer.data[HCI_MESSAGE_LEN_POS] && rx_buffer.data[3]) {
-        if (!initDone) {
-           initDone = true; 
-        } else {
-           hci_tx_pool->sendNextMsg();
-        }
-        dbgPrint(F("SUCCESS"));
-    } else {
-        dbgPrint(F("FAILED"));
-    }
-    return done;
-}
-
-bool processCommandComplete() {
-    uint16_t i = 0;
-    bool done = false;
-    
-    if (rx_buffer.len <= HCI_COMMAND_COMPLETE_CODE_POS ) {
-        done = false;
-    } else {
-        rx_buffer.paramCounter++;
-    }
-    
-
-     // when all the params are received, exit with true
-    if  (rx_buffer.paramCounter == rx_buffer.data[HCI_MESSAGE_LEN_POS] ) {  
-        
-      hci_tx_pool->sendNextMsg();
-
-    } 
-    return done;
-}
-
-bool processEvent() 
-{
-    uint16_t i = 0;
-    bool done = false;
-    
-
-            
-    
-    if (rx_buffer.len <= HCI_MESSAGE_LEN_POS ) {
-        return done;
-    } else if (rx_buffer.len == HCI_MESSAGE_LEN_POS ) {        
-        rx_buffer.paramCounter=0; // reach the paramLenField, reset Counter               
-    }        
-
-
-    switch (rx_buffer.data[HCI_EVENT_TYPE_POS]) {
-       
-    case Ev_Vendor_Specific:  // Vendor specific Event Opcode
-        done = processVendorSpecificEvent();
-    break;
-
-    case EV_Command_Status:  // Command Status
-        done = processCommandStatus();
-    break;
-    
-    case EV_Command_Complete:  // Command Complete
-
-     done = processCommandComplete();
-     break;
-    case EV_LE_Event_Code:     // LE Event Opcode
-    default:
-    break;
-    
-    }
-    return done;
-}
-
-bool process_rx_msg_data() {
-    uint16_t i = 0;
-    bool done = false;
-
-    switch (rx_buffer.data[HCI_PACKET_TYPE_POS]) {
-    case HCI_EVENT:  // Event
-        done = processEvent();
-    break;
-     
-    default:
-    break;
-    }
-
-    if (done) {
-        rx_msg_clean();
-    }
-    
-    return (rx_buffer.messageProcessed == noError);
-    
 }
 
 void cc2541::poll() {
     dbgPrint(F("poll  TBD"));
-    while (BLE.available()) {
-        store_rx_msg_data(BLE.read());
-        if (process_rx_msg_data()) {
+    while (hci_rx_process->readRxChar()) {        
+        if (hci_rx_process->process_rx_msg_data()) {
             //GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
             //sendSetupMessage();
-           // dbgPrint("Make Discoverable");
+            // dbgPrint("Make Discoverable");
         }
+        
     }
 }    
 
