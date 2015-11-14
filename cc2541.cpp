@@ -249,7 +249,8 @@ void cc2541::begin(unsigned char advertisementDataType,
     }
   }
 
- /* this->_localPipeInfo = (struct localPipeInfo*)malloc(sizeof(struct localPipeInfo) * numLocalPipedCharacteristics);
+/*
+  this->_localPipeInfo = (struct localPipeInfo*)malloc(sizeof(struct localPipeInfo) * numLocalPipedCharacteristics);
 
  // this->waitForSetupMode();
 
@@ -346,7 +347,6 @@ void cc2541::begin(unsigned char advertisementDataType,
   }
 
   this->_numLocalPipeInfo = numLocalPiped;
-
 */
   hci_tx_pool->sendNextMsg();
 }

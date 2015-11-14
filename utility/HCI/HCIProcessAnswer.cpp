@@ -22,7 +22,7 @@ HCIProcessAnswer :: HCIProcessAnswer(HciUart *_bleUart, HciDispatchPool *_txPool
 }
 
 bool HCIProcessAnswer :: readRxChar(void) {
-   return bleUart->readChar();
+    return bleUart->readChar();
 }
 
 bool HCIProcessAnswer :: processVendorSpecificEvent(void) {
@@ -31,13 +31,12 @@ bool HCIProcessAnswer :: processVendorSpecificEvent(void) {
     
     if (bleUart->reachGAPCode() ) {
         done = false;
-        } else {
+    } else {
         paramCounter++;
     }
     
     // when all the params are received, exit with true
     if  (paramCounter == bleUart->getHcidata(HCI_MESSAGE_LEN_POS)) {
-
 
         dbgPrint(F("processVendorSpecificEvent SUCCESS"));
         
@@ -45,18 +44,16 @@ bool HCIProcessAnswer :: processVendorSpecificEvent(void) {
         
         switch(gapCode) {
             case GAP_CommandStatus:
-            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS)
-            messageProcessed = partial;
-            else
-            messageProcessed = error;
-
+            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
+                messageProcessed = partial;
+            } else {
+                messageProcessed = error;
+            }
             break;
             
             case GAP_DeviceInitDone:
             if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
                 messageProcessed = noError;
-                debug++;
-                memset(debugArray, 0xA5, 255);
                 txPool->sendNextMsg();
             } else
             messageProcessed = error;
@@ -81,7 +78,7 @@ bool HCIProcessAnswer :: processCommandStatus(void) {
     if (bleUart->getHcidata(HCI_MESSAGE_LEN_POS) && bleUart->getHcidata(HCI_GAP_CODE_POS)) {
         if (!initDone) {
             initDone = true;
-            } else {
+        } else {
             txPool->sendNextMsg();
         }
         dbgPrint(F("SUCCESS"));
@@ -97,7 +94,7 @@ bool HCIProcessAnswer :: processCommandComplete(void) {
     
     if (bleUart->lessThanPosition(HCI_COMMAND_COMPLETE_CODE_POS)) {
         done = false;
-        } else {
+    } else {
         paramCounter++;
     }
     
@@ -118,10 +115,11 @@ bool HCIProcessAnswer :: processEvent()
     
     if (bleUart->lessThanPosition(HCI_MESSAGE_LEN_POS)) {
         return done;
-        } else if (bleUart->reachMessageLen() ) {
-        paramCounter=0; // reach the paramLenField, reset Counter
+    } else if (bleUart->reachMessageLen() ) {
+        // reach the paramLenField.
+        //The next data will be the first param
+        paramCounter=1; 
     }
-
 
     switch (bleUart->getHcidata(HCI_EVENT_TYPE_POS)) {
         

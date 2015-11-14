@@ -42,14 +42,31 @@ void HciUart :: sendMsg(uint8_t *buf ,uint8_t len) {
 }
 
 
+bool HciUart :: reachMessageLen(void) {
+    return (rx_buffer.len-1 <= HCI_MESSAGE_LEN_POS); 
+}
+
+    uint8_t HciUart :: getHcidata(uint8_t hciPos) {
+        return rx_buffer.data[hciPos];
+    }
+    
+    bool HciUart :: reachGAPCode(void){
+        return (rx_buffer.len-1 <= HCI_GAP_CODE_POS);
+    }
+    
+    bool reachMessageLen(void) ;
+    
+    bool HciUart :: reachSpecificLen(uint8_t testLen){
+        return (rx_buffer.len == testLen);
+    }
+    
+    bool HciUart :: lessThanPosition(uint8_t hciPos) {
+        return (rx_buffer.len <= hciPos);
+    }
 
 // PRIVATE
 bool HciUart :: store_rx_msg_data(uint8_t data) {
-    if (rx_buffer.len < (RX_BUFFER_MAX_LEN-1)) {
-            if (debug) {
-                debugArray[debug2] = data;
-            debug2++;
-            }            
+    if (rx_buffer.len < (RX_BUFFER_MAX_LEN-1)) {           
         rx_buffer.data[rx_buffer.len] = data;
         rx_buffer.len++;
 
