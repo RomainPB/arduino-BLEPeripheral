@@ -15,6 +15,7 @@ messageProcessedE messageProcessed;
 uint16_t paramCounter;
 static bool initDone = false;
 
+
 HCIProcessAnswer :: HCIProcessAnswer(HciUart *_bleUart, HciDispatchPool *_txPool)
 {
     this->bleUart = _bleUart;
@@ -23,6 +24,22 @@ HCIProcessAnswer :: HCIProcessAnswer(HciUart *_bleUart, HciDispatchPool *_txPool
 
 bool HCIProcessAnswer :: readRxChar(void) {
     return bleUart->readChar();
+}
+
+bool
+HCIProcessAnswer::waitingCmdAnswer(void) 
+{
+     volatile uint16_t gapCode = GAPCODE(bleUart->getHcidata(GAP_CMD_OPCODE_POS+1), 
+                                bleUart->getHcidata(GAP_CMD_OPCODE_POS));
+
+     switch (gapCode) {
+     case GAP_ADV_DATA_UPD_CMD:
+     case GAP_MAKE_DISCOVERABLE_CMD:
+     case GAP_DEVICE_INIT_CMD:
+         return true;
+     default:
+         return false;
+     }
 }
 
 bool HCIProcessAnswer :: processVendorSpecificEvent(void) {
@@ -45,7 +62,13 @@ bool HCIProcessAnswer :: processVendorSpecificEvent(void) {
         switch(gapCode) {
             case GAP_CommandStatus:
             if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
-                messageProcessed = partial;
+                if (waitingCmdAnswer() == true) {
+                    messageProcessed = partial;
+                } else {
+                    messageProcessed = noError;
+                    txPool->sendNextMsg();
+                }
+
             } else {
                 messageProcessed = error;
             }
@@ -56,9 +79,23 @@ bool HCIProcessAnswer :: processVendorSpecificEvent(void) {
                 messageProcessed = noError;
                 txPool->sendNextMsg();
             } else
-            messageProcessed = error;
+                messageProcessed = error;
             break;
-            
+            case GAP_MakeDiscoverableDone:
+            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
+                messageProcessed = noError;
+                txPool->sendNextMsg();
+            } else
+                messageProcessed = error;
+            break;
+            case GAP_AdvertDataUpdateDone:
+            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
+                messageProcessed = noError;
+                txPool->sendNextMsg();
+            } else
+                messageProcessed = error;
+            break;
+                                    
             default:
             break;
         }
