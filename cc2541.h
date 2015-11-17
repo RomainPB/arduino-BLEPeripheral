@@ -114,13 +114,14 @@ class cc2541 : protected BLEDevice
     unsigned char               _dynamicDataSequenceNo;
     bool                        _storeDynamicData;
     HciDispatchPool             *hci_tx_pool;
-    HCIProcessAnswer            *hci_rx_process;    
+    HCIProcessAnswer            *hci_rx_process;
     
     private:
     int GAP_DeviceInit(uint8_t profileRole, uint8_t maxScanResponses, uint8_t *pIRK, uint8_t *pSRK, uint32_t *pSignCounter );
     int GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType, uint8_t *initiatorAddr, uint8_t channelMap, uint8_t filterPolicy);
-    int GATT_AddService(uint16_t nAttributes);
+    int GATT_AddService(uint16_t nAttributes, uint8_t *uuid, uint8_t uuid_len);
     int GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permission);
+    int GAP_UpdateAdvertisingData(uint8_t adParam, uint8_t advLen, uint8_t *data);
 };
 
 #endif

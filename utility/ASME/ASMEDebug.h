@@ -8,13 +8,12 @@
 #ifndef __ASME_DEBUG_H__
 #define __ASME_DEBUG_H__
 
-
 #include <stdint-gcc.h>
-
-extern uint8_t debug, debug2;
-extern uint8_t debugArray[255];
 
 #define dbgPrint(x) Serial1.println(x)
 #define dbgPrintln(x) Serial1.println(x)
+
+void rx_buffer_log_add(uint8_t data);
+void tx_buffer_log_add(uint8_t data);
 
 #endif

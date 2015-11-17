@@ -14,6 +14,8 @@
 #include "cc2541.h"
 #include "utility/ASME/HciUart.h"
 #include "utility/ASME/ASMEDebug.h"
+#include "utility/HCI/packet/HCICommand.h"
+#include "utility/HCI/packet/HCIEvent.h"
 
 struct setupMsgData {
   unsigned char length;
@@ -118,7 +120,7 @@ int cc2541 :: GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType,
     buf[len++] = 0x01;                  // -Type    : 0x01 (Command)
     buf[len++] = 0x06;                  // -Opcode  : 0xFE06 (GAP_MakeDiscoverable)
     buf[len++] = 0xFE;
-    
+    buf[len++] = 10;
     buf[len++] = eventType;                 
     buf[len++] = initiatorAddrType;           
     memcpy(&buf[len], initiatorAddr, 6);       
@@ -132,30 +134,59 @@ int cc2541 :: GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType,
 }
 
 
+#define UPD_ADV_SCAN_RSP   0 
+#define UPD_ADV_ADV_DATA   1
 
+int cc2541 :: GAP_UpdateAdvertisingData(uint8_t adParam, uint8_t advLen, uint8_t *data)
+{
+    uint8_t buf[42] = {};
+    uint8_t len = 0;
+    
+    buf[len++] = 0x01;                  // -Type    : 0x01 (Command)
+    buf[len++] = 0x07;                  // -Opcode  : 0xFE06 (GAP_MakeDiscoverable)
+    buf[len++] = 0xFE;
+    buf[len++] = advLen + 2;            // len
+    buf[len++] = adParam;                 
+    buf[len++] = advLen;           
+    memcpy(&buf[len], data, advLen);       
+    len += advLen;
+
+    hci_tx_pool->addMsg(buf, len);
+    return 1;
+}
+
+#define GATT_UUID_SIZE 16
 	
-int cc2541 :: GATT_AddService(uint16_t nAttributes)
+int cc2541 :: GATT_AddService(uint16_t nAttributes, uint8_t *uuid, uint8_t uuid_len)
 {
 	uint8_t buf[42] = {};
 	uint8_t len = 0;
-	
+	uint8_t i = 0;
+
 	buf[len++] = 0x01;                  // -Type    : 0x01 (Command)
 	buf[len++] = 0xFC;                  // -Opcode  : 0xFDFC (GATT_AddService)
 	buf[len++] = 0xFD;
 	
+    //buf[len++] = 0x05;                  // Data len
+
+    buf[len++] = uuid_len + 3;          // data len
+    //for (i = 0; ((i < uuid_len) && (i < GATT_UUID_SIZE)); ++i) {
+    //     buf[len+i] = uuid[i];
+    //}
+    //len += min(uuid_len, GATT_UUID_SIZE);
+
 	buf[len++] = 0x00;
 	buf[len++] = 0x28;
 
-	buf[len++] = nAttributes && 0xFF;
-	buf[len++] = (nAttributes && 0xFF00) >> 8;
-    buf[len++] =  7; // encKey = 7..16
-	//BLE.write(buf, len);
+	buf[len++] = nAttributes & 0xFF;
+	buf[len++] = (nAttributes & 0xFF00) >> 8;
+    buf[len++] =  0x10; // encKey = 7..16
+
     hci_tx_pool->addMsg(buf, len);
 	return 1;
 }
 
 
-#define GATT_UUID_SIZE 16
 
 uint8_t gatt_uuid[GATT_UUID_SIZE] = {'L','E','D',0,0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -175,10 +206,11 @@ int cc2541 :: GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permis
 	buf[len++] = 0x01;                  // -Type    : 0x01 (Command)
 	buf[len++] = 0xFE;                  // -Opcode  : 0xFDFE (GATT_AddAttribute)
 	buf[len++] = 0xFD;
-	for (i = 0; ((i < uuid_len) || (i < GATT_UUID_SIZE)); ++i) {
+    buf[len++] = uuid_len + 1;          // data len
+	for (i = 0; ((i < uuid_len) && (i < GATT_UUID_SIZE)); ++i) {
         buf[len+i] = uuid[i];
     }	 
-    len +=16;
+    len += min(uuid_len, GATT_UUID_SIZE);
    
     buf[len++] = permission;
 
@@ -186,7 +218,7 @@ int cc2541 :: GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permis
     hci_tx_pool->addMsg(buf, len);
 
 	return 1;
-}
+}	
 
 void cc2541::begin(unsigned char advertisementDataType,
                       unsigned char advertisementDataLength,
@@ -202,13 +234,15 @@ void cc2541::begin(unsigned char advertisementDataType,
   unsigned char numLocalPipedCharacteristics = 0;
   unsigned char numLocalPipes = 0;
   int rc = 0;
-  
   Serial1.begin(115200);
   HciUart *bleUart = new HciUart();
-  hci_tx_pool = new HciDispatchPool(bleUart);
-  hci_rx_process = new HCIProcessAnswer(bleUart, hci_tx_pool);
+#if (BTOOL_DEBUG)
+  return;
+#endif
+  hci_tx_pool = new HciDispatchPool(bleUart);      
+  hci_rx_process = new HCIProcessAnswer(bleUart);
   
-  rc = GAP_DeviceInit (GAP_PROFILE_PERIPHERAL, 3, irk, srk, sig_counter);
+  rc = GAP_DeviceInit (GAP_PROFILE_PERIPHERAL, 5, irk, srk, sig_counter);
   dbgPrint("Begin ... Init Done");
   dbgPrint(rc);
 
@@ -250,7 +284,7 @@ void cc2541::begin(unsigned char advertisementDataType,
   }
 
 /*
-  this->_localPipeInfo = (struct localPipeInfo*)malloc(sizeof(struct localPipeInfo) * numLocalPipedCharacteristics);
+ // this->_localPipeInfo = (struct localPipeInfo*)malloc(sizeof(struct localPipeInfo) * numLocalPipedCharacteristics);
 
  // this->waitForSetupMode();
 
@@ -258,7 +292,7 @@ void cc2541::begin(unsigned char advertisementDataType,
   struct setupMsgData* setupMsgData = (struct setupMsgData*)setupMsg.buffer;
 
   setupMsg.status_byte = 0;
-
+*/
   bool hasAdvertisementData = advertisementDataType && advertisementDataLength && advertisementData;
   bool hasScanData          = scanDataType && scanDataLength && scanData;
   // GATT
@@ -267,6 +301,18 @@ void cc2541::begin(unsigned char advertisementDataType,
   unsigned char  pipe               = 1;
   unsigned char  numLocalPiped      = 0;
   unsigned char  numRemotePiped     = 0;
+  static uint8_t serviceDone = 0;
+
+  uint8_t partAttr = 0;
+  for (int j = 0; j < numLocalAttributes; j++) {
+      BLELocalAttribute* localAttribute = localAttributes[j];
+      unsigned short localAttributeType = localAttribute->type();
+      BLEUuid uuid = BLEUuid(localAttribute->uuid());
+      const unsigned char* uuidData = uuid.data();
+      unsigned char uuidLength = uuid.length();
+  
+      if (uuidLength <=2) partAttr++;
+  }
 
   for (int i = 0; i < numLocalAttributes; i++) {
     BLELocalAttribute* localAttribute = localAttributes[i];
@@ -275,18 +321,25 @@ void cc2541::begin(unsigned char advertisementDataType,
     const unsigned char* uuidData = uuid.data();
     unsigned char uuidLength = uuid.length();
 
+    if(uuidLength > 2) continue;
+
     if (localAttributeType == BLETypeService) {
       BLEService* service = (BLEService *)localAttribute;
 
-      rc = GATT_AddService(numLocalAttributes);
+
+      if (serviceDone) continue;
+      // 1 service more!!!
+      //rc = GATT_AddService(numLocalAttributes, (uint8_t *)uuidData, uuidLength);
+      rc = GATT_AddService(partAttr-1, (uint8_t *)BLETypeService, uuidLength);
       dbgPrint("GATT_AddService ... Done");
       dbgPrint(rc);
+      serviceDone++;
 
     } else if (localAttributeType == BLETypeCharacteristic) {
       BLECharacteristic* characteristic = (BLECharacteristic *)localAttribute;
       unsigned char properties = characteristic->properties();
       const char* characteristicUuid = characteristic->uuid();
-
+/*
       struct localPipeInfo* localPipeInfo = &this->_localPipeInfo[numLocalPiped];
 
       memset(localPipeInfo, 0, sizeof(struct localPipeInfo));
@@ -332,8 +385,8 @@ void cc2541::begin(unsigned char advertisementDataType,
           pipe++;
         }
       }
-
-      rc = GATT_AddAttribute ((uint8_t *)uuidData, 2, 
+      */
+      rc = GATT_AddAttribute ((uint8_t *)uuidData, uuidLength, 
                 (properties & (BLEWrite | BLEWriteWithoutResponse)) ?
                  GATT_PERMIT_WRITE : GATT_PERMIT_READ);
 
@@ -344,24 +397,36 @@ void cc2541::begin(unsigned char advertisementDataType,
     } else if (localAttributeType == BLETypeDescriptor) {
       BLEDescriptor* descriptor = (BLEDescriptor *)localAttribute;
     }
-  }
+  }/*
 
   this->_numLocalPipeInfo = numLocalPiped;
 */
+  uint8_t data[] = {0x02,0x01,0x06};
+  GAP_UpdateAdvertisingData(UPD_ADV_ADV_DATA, 3, data);
+  GAP_MakeDiscoverable(NOTCONNECTABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 
+                       0x7, 0x0);
+
   hci_tx_pool->sendNextMsg();
 }
 
 void cc2541::poll() {
+#if (BTOOL_DEBUG)
+   while (BLE.available()) {
+      Serial1.write(BLE.read());
+   }
+   while (Serial1.available()) {
+       BLE.write(Serial1.read());
+   }
+#else 
     dbgPrint(F("poll  TBD"));
     while (hci_rx_process->readRxChar()) {        
         if (hci_rx_process->process_rx_msg_data()) {
-            //GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
-            //sendSetupMessage();
-            // dbgPrint("Make Discoverable");
-        }
-        
+            hci_tx_pool->sendNextMsg();
+        }       
     }
+#endif
 }    
+
 
 bool cc2541::updateCharacteristicValue(BLECharacteristic& characteristic) {
 

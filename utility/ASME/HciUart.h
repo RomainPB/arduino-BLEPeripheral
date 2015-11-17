@@ -35,16 +35,25 @@ public:
     void sendMsg(uint8_t *buf ,uint8_t len);
     bool readChar(void);
     
-    uint8_t getHcidata(uint8_t hciPos);
+    inline bool reachMessageLen(void) {
+        return (rx_buffer.len-1 <= HCI_MESSAGE_LEN_POS);
+    }
+
+    inline uint8_t getHcidata(uint8_t hciPos) {
+        return rx_buffer.data[hciPos];
+    }
     
-    bool reachGAPCode(void);
-       
-    bool reachMessageLen(void) ;
+    inline bool reachGAPCode(void){
+        return (rx_buffer.len-1 <= HCI_GAP_CODE_POS);
+    }
+        
+    inline bool reachSpecificLen(uint8_t testLen){
+        return (rx_buffer.len == testLen);
+    }
     
-    bool reachSpecificLen(uint8_t testLen);
-    
-    bool lessThanPosition(uint8_t hciPos);
-    
+    inline bool lessThanPosition(uint8_t hciPos) {
+        return (rx_buffer.len <= hciPos);
+    }
 protected:
 private:
 	HciUart( const HciUart &c );
