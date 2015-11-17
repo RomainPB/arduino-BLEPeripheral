@@ -50,6 +50,7 @@ class HCIProcessAnswer
     HCIProcessAnswer( const HCIProcessAnswer &c );
     HCIProcessAnswer& operator=( const HCIProcessAnswer &c );
     bool store_rx_msg_data(uint8_t data);
+    bool waitingCmdAnswer(void);
 
 }; //HCIProcessAnswer
 
