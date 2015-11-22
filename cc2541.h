@@ -9,8 +9,8 @@
 #include "utility/ASME/HciDispatchPool.h"
 #include "utility/HCI/HCIProcessAnswer.h"
 
-
-extern bool testOK;
+// just for production test
+extern bool bleProductionTestOK;
 
 /** Data type for ACI commands and events */
 #define HAL_HCI_MAX_LENGTH    32

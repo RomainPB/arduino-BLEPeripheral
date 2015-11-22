@@ -17,6 +17,9 @@
 #include "utility/HCI/packet/HCICommand.h"
 #include "utility/HCI/packet/HCIEvent.h"
 
+// just for production test
+bool bleProductionTestOK=false;
+
 struct setupMsgData {
   unsigned char length;
   unsigned char cmd;
@@ -421,6 +424,7 @@ void cc2541::poll() {
     dbgPrint(F("poll  TBD"));
     while (hci_rx_process->readRxChar()) {        
         if (hci_rx_process->process_rx_msg_data()) {
+            bleProductionTestOK=true; // just for production test
             hci_tx_pool->sendNextMsg();
         }       
     }
