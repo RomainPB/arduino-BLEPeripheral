@@ -8,7 +8,7 @@
 #define __HCIUART_H__
 
 #include "Arduino.h"
-#include "utility\HCI\hci.h"
+#include "..\HCI\hci.h"
 
 #define RX_BUFFER_MAX_LEN  255
 
