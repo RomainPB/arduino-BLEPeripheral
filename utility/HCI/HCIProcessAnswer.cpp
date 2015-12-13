@@ -1,203 +1,44 @@
 #include "HCIProcessAnswer.h"
 #include "..\ASME\ASMEDebug.h"
 #include "GAPcc2541.h"
+#include "packet\HCICommand.h"
+#include "packet\HCIEvent.h"
+#include "packet\HCISpecificEvent.h"
 
-#define GAPCODE(ogf, ocf) (ocf | ogf << 8)
-
-typedef enum {
-    noError,
-    started,
-    partial,
-    error
-}messageProcessedE;
-
-messageProcessedE messageProcessed;
-uint16_t paramCounter;
-static bool initDone = false;
-
-
-HCIProcessAnswer :: HCIProcessAnswer(HciUart *_bleUart, HciDispatchPool *_txPool)
+HCIProcessAnswer :: HCIProcessAnswer(HciUart *_bleUart)
 {
+    hciPackets[0] = new HCICommand(this);
+    hciPackets[3] = new HCIEvent(this);
     this->bleUart = _bleUart;
-    this->txPool = _txPool;
 }
 
 bool HCIProcessAnswer :: readRxChar(void) {
     return bleUart->readChar();
 }
 
-bool
-HCIProcessAnswer::waitingCmdAnswer(void) 
-{
-     volatile uint16_t gapCode = GAPCODE(bleUart->getHcidata(GAP_CMD_OPCODE_POS+1), 
-                                bleUart->getHcidata(GAP_CMD_OPCODE_POS));
-
-     switch (gapCode) {
-     case GAP_ADV_DATA_UPD_CMD:
-     case GAP_MAKE_DISCOVERABLE_CMD:
-     case GAP_DEVICE_INIT_CMD:
-         return true;
-     default:
-         return false;
-     }
-}
-
-bool HCIProcessAnswer :: processVendorSpecificEvent(void) {
-    bool done = false;
-
-    
-    if (bleUart->reachGAPCode() ) {
-        done = false;
-    } else {
-        paramCounter++;
-    }
-    
-    // when all the params are received, exit with true
-    if  (paramCounter == bleUart->getHcidata(HCI_MESSAGE_LEN_POS)) {
-
-        dbgPrint(F("processVendorSpecificEvent SUCCESS"));
-        
-        uint16_t gapCode = GAPCODE(bleUart->getHcidata(HCI_GAP_CODE_POS+1), bleUart->getHcidata(HCI_GAP_CODE_POS));
-        
-        switch(gapCode) {
-            case GAP_CommandStatus:
-            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
-                if (waitingCmdAnswer() == true) {
-                    messageProcessed = partial;
-                } else {
-                    messageProcessed = noError;
-                    txPool->sendNextMsg();
-                }
-
-            } else {
-                messageProcessed = error;
-            }
-            break;
-            
-            case GAP_DeviceInitDone:
-            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
-                messageProcessed = noError;
-                txPool->sendNextMsg();
-            } else
-                messageProcessed = error;
-            break;
-            case GAP_MakeDiscoverableDone:
-            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
-                messageProcessed = noError;
-                txPool->sendNextMsg();
-            } else
-                messageProcessed = error;
-            break;
-            case GAP_AdvertDataUpdateDone:
-            if (bleUart->getHcidata(GAP_ERROR_CODE_POS) == GAP_ERR_SUCCESS) {
-                messageProcessed = noError;
-                txPool->sendNextMsg();
-            } else
-                messageProcessed = error;
-            break;
-                                    
-            default:
-            break;
-        }
-        done = true;
-    }
-
-    return done;
-}
-
-bool HCIProcessAnswer :: processCommandStatus(void) {
-    bool done = false;
-
-    if (bleUart->reachSpecificLen((2+(bleUart->getHcidata(HCI_MESSAGE_LEN_POS))))) {
-        done = true;
-    }
-
-    if (bleUart->getHcidata(HCI_MESSAGE_LEN_POS) && bleUart->getHcidata(HCI_GAP_CODE_POS)) {
-        if (!initDone) {
-            initDone = true;
-        } else {
-            txPool->sendNextMsg();
-        }
-        dbgPrint(F("SUCCESS"));
-        } else {
-        dbgPrint(F("FAILED"));
-    }
-    return done;
-}
-
-bool HCIProcessAnswer :: processCommandComplete(void) {
-    uint16_t i = 0;
-    bool done = false;
-    
-    if (bleUart->lessThanPosition(HCI_COMMAND_COMPLETE_CODE_POS)) {
-        done = false;
-    } else {
-        paramCounter++;
-    }
-    
-
-    // when all the params are received, exit with true
-    if  (paramCounter == bleUart->getHcidata(HCI_MESSAGE_LEN_POS)) {
-        
-        txPool->sendNextMsg();
-
-    }
-    return done;
-}
-
-bool HCIProcessAnswer :: processEvent()
-{
-    uint16_t i = 0;
-    bool done = false;
-    
-    if (bleUart->lessThanPosition(HCI_MESSAGE_LEN_POS)) {
-        return done;
-    } else if (bleUart->reachMessageLen() ) {
-        // reach the paramLenField.
-        //The next data will be the first param
-        paramCounter=1; 
-    }
-
-    switch (bleUart->getHcidata(HCI_EVENT_TYPE_POS)) {
-        
-        case Ev_Vendor_Specific:  // Vendor specific Event Opcode
-        done = processVendorSpecificEvent();
-        break;
-
-        case EV_Command_Status:  // Command Status
-        done = processCommandStatus();
-        break;
-        
-        case EV_Command_Complete:  // Command Complete
-
-        done = processCommandComplete();
-        break;
-        case EV_LE_Event_Code:     // LE Event Opcode
-        default:
-        break;
-        
-    }
-    return done;
-}
-
-
 bool HCIProcessAnswer :: process_rx_msg_data() {
     uint16_t i = 0;
     bool done = false;
     uint8_t value = bleUart->getHcidata(HCI_PACKET_TYPE_POS);
-    switch (value) {
-        case HCI_EVENT:  // Event
-        done = processEvent();
-        break;
-        
-        default:
-        break;
-    }
+    done = hciPackets[value-1]->process(); // on the array the position of the class is one less of the actual HCI code
+//     switch (value) {
+//         case HCI_EVENT:  // Event
+//         done = processEvent();
+//         break;
+//         
+//         default:
+//         break;
+//     }
 
     if (done) {
         bleUart->rx_msg_clean();
     }
     
-    return (messageProcessed == noError);
+    done = hciPackets[value-1]->isProcessed();
     
+    if (done) {
+        hciPackets[value-1]->resetAnswerCompleted();//reset FSM
+    }
+    
+    return done;
 }

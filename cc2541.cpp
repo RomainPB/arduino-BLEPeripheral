@@ -14,6 +14,11 @@
 #include "cc2541.h"
 #include "utility/ASME/HciUart.h"
 #include "utility/ASME/ASMEDebug.h"
+#include "utility/HCI/packet/HCICommand.h"
+#include "utility/HCI/packet/HCIEvent.h"
+
+// just for production test
+bool bleProductionTestOK=false;
 
 struct setupMsgData {
   unsigned char length;
@@ -118,7 +123,7 @@ int cc2541 :: GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType,
     buf[len++] = 0x01;                  // -Type    : 0x01 (Command)
     buf[len++] = 0x06;                  // -Opcode  : 0xFE06 (GAP_MakeDiscoverable)
     buf[len++] = 0xFE;
-    buf[len++] = 10;   
+    buf[len++] = 10;
     buf[len++] = eventType;                 
     buf[len++] = initiatorAddrType;           
     memcpy(&buf[len], initiatorAddr, 6);       
@@ -130,6 +135,7 @@ int cc2541 :: GAP_MakeDiscoverable(uint8_t eventType, uint8_t initiatorAddrType,
     hci_tx_pool->addMsg(buf, len);
     return 1;
 }
+
 
 #define UPD_ADV_SCAN_RSP   0 
 #define UPD_ADV_ADV_DATA   1
@@ -151,9 +157,6 @@ int cc2541 :: GAP_UpdateAdvertisingData(uint8_t adParam, uint8_t advLen, uint8_t
     hci_tx_pool->addMsg(buf, len);
     return 1;
 }
-
-
-
 
 #define GATT_UUID_SIZE 16
 	
@@ -218,7 +221,7 @@ int cc2541 :: GATT_AddAttribute (uint8_t *uuid, uint8_t uuid_len, uint8_t permis
     hci_tx_pool->addMsg(buf, len);
 
 	return 1;
-}
+}	
 
 void cc2541::begin(unsigned char advertisementDataType,
                       unsigned char advertisementDataLength,
@@ -239,13 +242,11 @@ void cc2541::begin(unsigned char advertisementDataType,
   
   Serial1.begin(115200);
   HciUart *bleUart = new HciUart();
-
 #if (BTOOL_DEBUG)
   return;
 #endif
- 
-  hci_tx_pool = new HciDispatchPool(bleUart);
-  hci_rx_process = new HCIProcessAnswer(bleUart, hci_tx_pool);
+  hci_tx_pool = new HciDispatchPool(bleUart);      
+  hci_rx_process = new HCIProcessAnswer(bleUart);
   
   rc = GAP_DeviceInit (GAP_PROFILE_PERIPHERAL, 5, irk, srk, sig_counter);
   dbgPrint("Begin ... Init Done");
@@ -426,14 +427,13 @@ void cc2541::poll() {
     dbgPrint(F("poll  TBD"));
     while (hci_rx_process->readRxChar()) {        
         if (hci_rx_process->process_rx_msg_data()) {
-            //GAP_MakeDiscoverable(DISCOVERABLE_UNIDIR, ADDRTYPE_PUBLIC, addr, 0, 0);
-            //sendSetupMessage();
-            // dbgPrint("Make Discoverable");
-        }
-        
+            bleProductionTestOK=true; // just for production test
+            hci_tx_pool->sendNextMsg();
+        }       
     }
 #endif
 }    
+
 
 bool cc2541::updateCharacteristicValue(BLECharacteristic& characteristic) {
 

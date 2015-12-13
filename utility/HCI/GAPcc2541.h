@@ -2,6 +2,7 @@
 #define _GAP_2541_H_
 
 #include "../HCI/hci.h"
+
 #define GAP_DEVICE_INIT_CMD          0xFE00
 #define GAP_MAKE_DISCOVERABLE_CMD    0xFE06
 #define GAP_ADV_DATA_UPD_CMD         0xFE07
@@ -59,4 +60,5 @@
 
 #define GAP_ERROR_CODE_POS          HCI_GAP_CODE_POS+2
 #define GAP_CMD_OPCODE_POS          HCI_GAP_CODE_POS+3
+
 #endif

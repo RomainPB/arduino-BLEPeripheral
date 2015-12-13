@@ -9,8 +9,8 @@
 #include "utility/ASME/HciDispatchPool.h"
 #include "utility/HCI/HCIProcessAnswer.h"
 
-
-extern bool testOK;
+// just for production test
+extern bool bleProductionTestOK;
 
 /** Data type for ACI commands and events */
 #define HAL_HCI_MAX_LENGTH    32
@@ -114,7 +114,7 @@ class cc2541 : protected BLEDevice
     unsigned char               _dynamicDataSequenceNo;
     bool                        _storeDynamicData;
     HciDispatchPool             *hci_tx_pool;
-    HCIProcessAnswer            *hci_rx_process;    
+    HCIProcessAnswer            *hci_rx_process;
     
     private:
     int GAP_DeviceInit(uint8_t profileRole, uint8_t maxScanResponses, uint8_t *pIRK, uint8_t *pSRK, uint32_t *pSignCounter );
