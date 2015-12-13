@@ -3,7 +3,8 @@
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/sandeepmistry/arduino-BLEPeripheral?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
-An [Arduino](http://arduino.cc) library for creating custom BLE peripherals with [Nordic Semiconductor](http://www.nordicsemi.com)'s [nRF8001](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF8001) or [nR51822](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF51822).
+An [Arduino](http://arduino.cc) library for creating custom BLE peripherals with [Nordic Semiconductor](http://www.nordicsemi.com)'s [nRF8001](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF8001) or [nR51822](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF51822) or
+[CC2541](http://www.ti.com/product/CC2541).
 
 Enables you to create more customized BLE Peripheral's compared to the basic UART most other Arduino BLE libraries provide.
 
@@ -35,6 +36,12 @@ Enables you to create more customized BLE Peripheral's compared to the basic UAR
    * [nRF51822](http://redbearlab.com/redbearlab-nrf51822)
    * [BLE Nano](http://redbearlab.com/blenano/)
  * [RFduino](http://www.rfduino.com) with [Arduino Add-on](https://github.com/RFduino/RFduino)
+
+### [Texas Instruments CC2541 ](http://www.ti.com/product/CC2541)
+
+ * [SmartEverything FOX](http://www.smarteverything.it) with [Arduino Add-on](http://www.arduino.cc/en/Guide/Libraries#toc3)
+
+**Note:** The CC2541 is connected to the Smart Everything throught the pluggable TDK SESUB-PAN-T2541 module. The communication between the CC2541 and the SME is done through a USART interface.
 
 #### Pinouts
 
