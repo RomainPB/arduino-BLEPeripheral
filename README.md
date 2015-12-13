@@ -3,7 +3,7 @@
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/sandeepmistry/arduino-BLEPeripheral?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
-An [Arduino](http://arduino.cc) library for creating custom BLE peripherals with [Nordic Semiconductor](http://www.nordicsemi.com)'s [nRF8001](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF8001) or [nR51822](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF51822) or
+An [Arduino](http://arduino.cc) library for creating custom BLE peripherals with [Nordic Semiconductor](http://www.nordicsemi.com)'s [nRF8001](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF8001),  [nR51822](http://www.nordicsemi.com/eng/Products/Bluetooth-R-low-energy/nRF51822) or
 [CC2541](http://www.ti.com/product/CC2541).
 
 Enables you to create more customized BLE Peripheral's compared to the basic UART most other Arduino BLE libraries provide.
@@ -118,7 +118,8 @@ This libary is [licensed](LICENSE) under the [MIT Licence](http://en.wikipedia.o
    * Original Arduino SDK for nRF8001
  * [@guanix](https://github.com/guanix)'s [arduino-nrf8001](https://github.com/guanix/arduino-nrf8001)
    * nRF8001 support for Arduino
-
+[TI ble Home Page](http://processors.wiki.ti.com/index.php/Category:BluetoothLE)
+   * Starting point for TI BLE support and documentation.
 
 [![Analytics](https://ga-beacon.appspot.com/UA-56089547-1/sandeepmistry/arduino-BLEPeripheral?pixel)](https://github.com/igrigorik/ga-beacon)
 
