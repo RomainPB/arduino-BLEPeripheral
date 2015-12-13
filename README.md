@@ -118,7 +118,8 @@ This libary is [licensed](LICENSE) under the [MIT Licence](http://en.wikipedia.o
    * Original Arduino SDK for nRF8001
  * [@guanix](https://github.com/guanix)'s [arduino-nrf8001](https://github.com/guanix/arduino-nrf8001)
    * nRF8001 support for Arduino
-[TI ble Home Page](http://processors.wiki.ti.com/index.php/Category:BluetoothLE)
+ * [@Texas Instruments Home Page](http://processors.wiki.ti.com/index.php)
+[BLE Smart Wiki](http://processors.wiki.ti.com/index.php/Category:BluetoothLE)
    * Starting point for TI BLE support and documentation.
 
 [![Analytics](https://ga-beacon.appspot.com/UA-56089547-1/sandeepmistry/arduino-BLEPeripheral?pixel)](https://github.com/igrigorik/ga-beacon)
