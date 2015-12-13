@@ -234,6 +234,8 @@ void cc2541::begin(unsigned char advertisementDataType,
   unsigned char numLocalPipedCharacteristics = 0;
   unsigned char numLocalPipes = 0;
   int rc = 0;
+
+  delay(500);
   
   Serial1.begin(115200);
   HciUart *bleUart = new HciUart();
